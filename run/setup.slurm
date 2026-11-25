@@ -16,9 +16,19 @@ mkdir -p "$DATA"/{weights,lmudata,llava,coco,eval,train,pydeps,hf}
 "${RUN[@]}" python -c "import torch, transformers, torchvision, thop, timm, torch.utils.tensorboard; print('import', torch.__version__, transformers.__version__, torchvision.__version__)"
 "${RUN[@]}" python -c "from huggingface_hub import snapshot_download as s, hf_hub_download as h; s('Qwen/Qwen2.5-VL-3B-Instruct', local_dir='$MODEL'); h('liuhaotian/LLaVA-Instruct-150K', 'llava_instruct_150k.json', repo_type='dataset', local_dir='$DATA/llava')"
 LMU=/scratch/aharun/data/$P/lmudata
-for t in A-OKVQA VizWiz SEEDBench_IMG MMBench_DEV_CN MME; do
-    [ -s "$DATA/lmudata/$t.tsv" ] || curl -fsSL -o "$DATA/lmudata/$t.tsv" "https://opencompass.openxlab.space/utils/VLMEval/$t.tsv"
-done
+# opencompass.openxlab.space serves an expired certificate; the TSVs come from VLMEvalKit's A-OKVQA URL, an HF mirror
+# checked against VLMEvalKit's DATASET_MD5, and the MMBench authors' own release for MMBench_DEV_CN.
+HF=https://huggingface.co/datasets/mm-eval/VLMEvalKit/resolve/main
+while read -r t url md5; do
+    [ -s "$DATA/lmudata/$t.tsv" ] || curl -fsSL -o "$DATA/lmudata/$t.tsv" "$url"
+    [ "$md5" = - ] || echo "$md5  $DATA/lmudata/$t.tsv" | md5sum -c -
+done <<EOT
+A-OKVQA https://huggingface.co/datasets/Allen8/A-OKVQA/resolve/main/a-okvqa.tsv -
+VizWiz $HF/VizWiz.tsv fa4ac4164467563ed2fac6eac6631bd0
+SEEDBench_IMG $HF/SEEDBench_IMG.tsv 68017231464752261a2526d6ca3a10c0
+MME $HF/MME.tsv b36b43c3f09801f5d368627fb92187c3
+MMBench_DEV_CN https://download.openmmlab.com/mmclassification/datasets/mmbench/mmbench_dev_cn_20231003.tsv ebc785bb38c92f1de6bf8c83bfb64da6
+EOT
 for t in ChartQA_TEST OCRBench TextVQA_VAL; do ln -sfn "$LMU/$t.tsv" "$DATA/lmudata/$t.tsv"; done
 md5sum "$DATA"/lmudata/*.tsv
 [ -d "$DATA/coco/train2017" ] || { curl -fsSL -o "$DATA/coco/train2017.zip" http://images.cocodataset.org/zips/train2017.zip
