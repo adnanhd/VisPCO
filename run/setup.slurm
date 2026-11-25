@@ -12,7 +12,7 @@
 set -euo pipefail
 source "$SLURM_SUBMIT_DIR/run/common.sh"
 mkdir -p "$DATA"/{weights,lmudata,llava,coco,eval,train,pydeps,hf}
-"${RUN[@]}" python -m pip install -q --no-deps --target "$DATA/pydeps" thop==0.1.1.post2209072238 timm==1.0.15 tensorboard==2.19.0 tensorboard-data-server==0.7.2 werkzeug==3.1.3 markdown==3.8.2 qwen-vl-utils==0.0.11 av==14.4.0 absl-py==2.3.1 grpcio==1.76.0
+"${RUN[@]}" python -m pip install -q --no-deps --target "$DATA/pydeps" thop==0.1.1.post2209072238 timm==1.0.15 tensorboard==2.19.0 tensorboard-data-server==0.7.2 werkzeug==3.1.3 markdown==3.8.2 absl-py==2.3.1 grpcio==1.76.0
 "${RUN[@]}" python -c "import torch, transformers, torchvision, thop, timm, torch.utils.tensorboard; print('import', torch.__version__, transformers.__version__, torchvision.__version__)"
 "${RUN[@]}" python -c "from huggingface_hub import snapshot_download as s, hf_hub_download as h; s('Qwen/Qwen2.5-VL-3B-Instruct', local_dir='$MODEL'); h('liuhaotian/LLaVA-Instruct-150K', 'llava_instruct_150k.json', repo_type='dataset', local_dir='$DATA/llava')"
 LMU=/scratch/aharun/data/$P/lmudata
