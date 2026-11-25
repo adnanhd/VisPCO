@@ -32,13 +32,18 @@ from utils.utils import (
 def get_args_parser():
     parser = argparse.ArgumentParser('Qwen-Fastv-VisPCO evaluation', add_help=False)
     parser.add_argument('--model_name', type=str, default='qwen2.5vl-3b')
-    parser.add_argument('--trained_predict_pruning_ratio_path', type=str, default='xxx/workspace/Qwen-Fastv-VisPCO/train_logs/lr_0.0001_epochs_1000_w_1.0_sigma_100.0_alpha_5.0_epsilon_0.005_beta_0.5/predict_pruning_ratio_12.pth')
+    parser.add_argument('--trained_predict_pruning_ratio_path', type=str, default=None)
+    parser.add_argument('--model_path', type=str, required=True)
+    parser.add_argument('--out_file', type=str, required=True)
+    parser.add_argument('--ratio', type=float, default=0.5)
+    parser.add_argument('--fixed_k', type=float, default=None, help="FastV configuration: kernel layer k, r solved per sample to meet the budget")
+    parser.add_argument('--fixed_r_file', type=str, default=None, help="JSON list of per-layer keep ratios (cumulative), scaled per sample to meet the budget")
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--precision', type=str, default='bf16')
     parser.add_argument('--device', type=str, default='cuda')
     
     # Dataset Parameters
-    parser.add_argument('--valdata_path', default='xxx/workspace/Qwen-Fastv-VisPCO/eval_max_100_dataset.json', type=str, metavar='VALDATA', help="Path to validation data")
+    parser.add_argument('--valdata_path', required=True, type=str, metavar='VALDATA', help="Path to validation data")
     parser.add_argument('--num_workers', default=4, type=int, metavar='NUM_WORKERS', help="Number of workers (default: 16)")
     parser.add_argument('--pin_memory', action='store_true', help="Pin memory (default: False)")
     # Some limitations of Qwen data
@@ -74,7 +79,7 @@ def main(args):
         "fp32": torch.float32,
     }
     if model_name == 'qwen2.5vl-7b':
-        model_path = "xxx/pretrained_weights/Qwen/Qwen2.5-VL-7B-Instruct"
+        model_path = args.model_path
         config = Qwen2_5_VLConfig.from_pretrained(model_path)
         model = Qwen2_5_VLForConditionalGeneration_FastV.from_pretrained(
             model_path,
@@ -101,14 +106,14 @@ def main(args):
             print(f"⚠️ No predict_pruning_ratio parameter path is provided, please check! ⚠️")
         print(f"✅ {model_name} has been successfully loaded! ✅")
     elif model_name == 'qwen2.5vl-3b':
-        model_path = "xxx/pretrained_weights/Qwen/Qwen2.5-VL-3B-Instruct"
+        model_path = args.model_path
         config = Qwen2_5_VLConfig.from_pretrained(model_path)
         model = Qwen2_5_VLForConditionalGeneration_FastV.from_pretrained(
             model_path,
             config=config,
             # ignore_mismatched_sizes=True
         )
-        if hasattr(args, 'trained_predict_pruning_ratio_path') and args.trained_predict_pruning_ratio_path:
+        if args.trained_predict_pruning_ratio_path:
             state_dict = torch.load(args.trained_predict_pruning_ratio_path, map_location='cpu')
             # Handle prefix issues, such as distributed and module, etc.
             # If all keys have 'module.' prefix, remove it
@@ -129,6 +134,10 @@ def main(args):
         print(f"✅ {model_name} has been successfully loaded! ✅")
     else:
         raise ValueError(f"⚠️ Model {model_name} is currently not supported ⚠️")
+
+    if args.fixed_k is not None or args.fixed_r_file is not None:
+        from models.qwen2_5vl.fixed_config import fix_configuration
+        fix_configuration(model.model.language_model.predict_pruning_ratio, args.fixed_k, args.fixed_r_file)
 
     model.eval()
     model = model.to(precision_map[args.precision])
@@ -176,7 +185,7 @@ def main(args):
                             collate_fn=DataCollatorForSupervisedDataset(tokenizer=processor.tokenizer),
                 )
             )
-    for ratio in [0.5]:
+    for ratio in [args.ratio]:
         test_stats = evaluate(eval_dataloader_lists, dataset_eval_names, model, processor, args, ratio=ratio)
         flops = test_stats.pop('flops')
         max_budgets = test_stats.pop('max_budgets')
@@ -185,13 +194,17 @@ def main(args):
         if is_main_process():
             log_stats = {
                 'ratio': ratio,
+                'fixed_k': args.fixed_k,
+                'fixed_r_file': args.fixed_r_file,
+                'checkpoint': args.trained_predict_pruning_ratio_path,
+                'fixed_infeasible': sum(e['infeasible'] for e in getattr(model.model.language_model.predict_pruning_ratio, 'fixed_log', [])),
                 'flops': round(flops, 3),
                 'max_budgets': round(max_budgets, 3),
                 'min_budgets': round(min_budgets, 3),
                 'all_acc': round(all_acc, 2),
                 **{f'test_{k}': round(v, 2) for k, v in test_stats.items()},
                 }
-            with open(os.path.join("xxx/workspace/Qwen-Fastv-VisPCO/results", "eval_ours.txt"), mode="a", encoding="utf-8") as f:
+            with open(args.out_file, mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(log_stats) + "\n")
         if args.distributed:
             torch.distributed.barrier()

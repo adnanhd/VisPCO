@@ -36,6 +36,7 @@ def get_args_parser():
     parser.add_argument("--resource_model_path", default='xxx/workspace/Qwen-Fastv-VisPCO/resource_network_weights/macs_model.pth', type=str, metavar='RESOURCE_MODEL_PATH', help="Path to resource model")
 
     # Dataset Parameters
+    parser.add_argument('--model_path', type=str, required=True)
     parser.add_argument('--trdata_path', default='xxx/workspace/Qwen-Fastv-VisPCO/train_10_uniform_area_single_image.json', type=str, metavar='TRDATA', help="Path to training data")
     parser.add_argument('--valdata_path', default='xxx/workspace/Qwen-Fastv-VisPCO/eval_max_5_dataset.json', type=str, metavar='VALDATA', help="Path to validation data")
     parser.add_argument('--batch_size', default=2, type=int, metavar='BATCH_SIZE', help="Batch size (default: 16)")
@@ -123,7 +124,7 @@ def main(args):
         "fp32": torch.float32,
     }
     if model_name == 'qwen2.5vl-7b':
-        model_path = "xxx/pretrained_weights/Qwen/Qwen2.5-VL-7B-Instruct"
+        model_path = args.model_path
         config = Qwen2_5_VLConfig.from_pretrained(model_path)
         config.finetuning = args.finetuning
         model = Qwen2_5_VLForConditionalGeneration_FastV.from_pretrained(
@@ -141,7 +142,7 @@ def main(args):
         model.model.language_model.predict_pruning_ratio.apply(init_weights)
         print(f"✅ {model_name} has been successfully loaded! ✅")
     elif model_name == 'qwen2.5vl-3b':
-        model_path = "xxx/pretrained_weights/Qwen/Qwen2.5-VL-3B-Instruct"
+        model_path = args.model_path
         config = Qwen2_5_VLConfig.from_pretrained(model_path)
         config.finetuning = args.finetuning
         model = Qwen2_5_VLForConditionalGeneration_FastV.from_pretrained(
