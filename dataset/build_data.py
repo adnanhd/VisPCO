@@ -44,7 +44,7 @@ def prompt_of(name, row):
 
 
 def answer_of(row):
-    a = row['answer']
+    a = row['answer'] if 'answer' in row else row['answers']  # VizWiz.tsv holds its ten answers in the column answers
     if a.startswith('['):
         return ast.literal_eval(a)
     return a
