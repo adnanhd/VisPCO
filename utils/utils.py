@@ -53,7 +53,7 @@ def init_distributed_mode(args):
     torch.cuda.set_device(args.gpu)
     args.dist_backend = 'nccl'
     if 'MASTER_ADDR' in os.environ and 'MASTER_PORT' in os.environ:
-        print(f'| MASTER_ADDR: {os.environ['MASTER_ADDR']}| MASTER_PORT: {os.environ['MASTER_PORT']} | RANK: {args.rank} | WORLD_SIZE: {args.world_size} | LOCAL RANK: {args.gpu} |')
+        print(f'| MASTER_ADDR: {os.environ["MASTER_ADDR"]}| MASTER_PORT: {os.environ["MASTER_PORT"]} | RANK: {args.rank} | WORLD_SIZE: {args.world_size} | LOCAL RANK: {args.gpu} |')
     else:
         print(f'| RANK: {args.rank} | WORLD_SIZE: {args.world_size} | LOCAL RANK: {args.gpu} |')
     
